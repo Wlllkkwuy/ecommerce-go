@@ -1,28 +1,74 @@
 package orders
 
-import "ecommerce-go/pkg/products" // Aquí es donde se importa del paquete local
+import (
+	"ecommerce-go/pkg/products"
+	"errors"
+	"fmt"
+)
 
-// Struct: Representación del modelo de la Orden de compra
+type PricedItem interface {
+	Price() float64
+	Name() string
+}
+
+// 😈
+
 type Order struct {
-	ID       int
-	Products []products.Product
-	Total    float64
+	id    int
+	items []PricedItem
+	total float64
 }
 
-// Función Pura: Calcula el total acumulativo a partir del slice de productos
-func CalculateTotal(items []products.Product) float64 {
-	total := 0.0
-	for _, item := range items {
-		total += item.Price
+func NewOrder(id int, items []PricedItem) (*Order, error) {
+	if len(items) == 0 {
+		return nil, errors.New("no se puede crear una orden sin productos")
 	}
-	return total
+
+	order := &Order{
+		id:    id,
+		items: items,
+	}
+
+	order.calculateTotal()
+
+	//calcuad
+	err := order.ProcessStockDeduction()
+	if err != nil {
+		return nil, err
+	}
+	// ------------------
+
+	return order, nil
 }
 
-// Constructor Funcional: Instancia la Orden con el total calculado
-func CreateOrder(id int, items []products.Product) Order {
-	return Order{
-		ID:       id,
-		Products: items,
-		Total:    CalculateTotal(items),
+func (o *Order) calculateTotal() {
+	var total float64
+	for _, item := range o.items {
+		total += item.Price()
 	}
+	o.total = total
+}
+
+func (o *Order) ID() int {
+	return o.id
+}
+
+func (o *Order) Total() float64 {
+	return o.total
+}
+
+func (o *Order) Items() []PricedItem {
+	return o.items
+}
+
+func (o *Order) ProcessStockDeduction() error {
+	for _, item := range o.items {
+		if prod, ok := item.(*products.Product); ok {
+			err := prod.ReduceStock(1)
+			if err != nil {
+				return fmt.Errorf("error al genearr la orden %d: %w", o.id, err)
+			}
+		}
+	}
+	return nil
 }
